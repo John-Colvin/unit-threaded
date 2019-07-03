@@ -10,7 +10,7 @@ module unit_threaded.integration;
 
 version(Windows) {
     extern(C) int mkdir(char*);
-    extern(C) char* mktemp(char* template_);
+    extern(C) char* mktemp(char* nameTemplate);
 
     char* mkdtemp(char* t) {
         version(unitUnthreaded)
@@ -25,12 +25,11 @@ version(Windows) {
     char* mkdtempImpl(char* t) {
         char* result = mktemp(t);
 
-        if(result is null) return null;
-        if (mkdir(result)) return null;
+        if (result is null) return null;
+        if (mkdir(result))  return null;
 
         return result;
     }
-
 } else {
     extern(C) char* mkdtemp(char* template_);
 }
@@ -52,25 +51,27 @@ shared static this() {
  */
 struct Sandbox {
     import std.path;
+    import std.typecons: Flag, No;
 
     enum defaultSandboxesPath = buildPath("tmp", "unit-threaded");
     static string sandboxesPath = defaultSandboxesPath;
     string testPath;
+    Flag!"Persist" persist;
 
-    /// Instantiate a Sandbox object
-    static Sandbox opCall() {
+    /// Instantiate a Sandbox object. `persist` allows you to keep the sandbox
+    /// after the Sandbox is destroyed (e.g. goes out of scope)
+    static Sandbox opCall(Flag!"Persist" persist = No.Persist) {
         Sandbox ret;
         ret.testPath = newTestDir;
+        ret.persist = persist;
         return ret;
     }
-
 
     static void setPath(string path) {
         import std.file: exists, mkdirRecurse;
         sandboxesPath = path;
         if(!sandboxesPath.exists) () @trusted { mkdirRecurse(sandboxesPath); }();
     }
-
 
     static void resetPath() {
         sandboxesPath = defaultSandboxesPath;
@@ -91,7 +92,6 @@ struct Sandbox {
         import std.array;
         writeFile(fileName, lines.join("\n"));
     }
-
 
     /// Assert that a file exists in the sandbox
     void shouldExist(string fileName, in string file = __FILE__, in size_t line = __LINE__) const {
@@ -198,6 +198,11 @@ struct Sandbox {
                 line);
     }
 
+    ~this() @trusted {
+        import std.file: rmdirRecurse;
+        if (!persist)
+            rmdirRecurse(testPath);
+    }
 
 private:
 
@@ -236,15 +241,16 @@ private:
         import core.stdc.string: strerror;
         import core.stdc.errno: errno;
 
+	auto templateStr = buildPath(sandboxesPath, "XXXXXX") ~ '\0';
         char[2048] template_;
-        copy(buildPath(sandboxesPath, "XXXXXX") ~ '\0', template_[]);
+	template_[0 .. templateStr.length] = templateStr;
 
         auto path = () @trusted { return mkdtemp(&template_[0]).to!string; }();
 
         enforce(path != "",
                 "\n" ~
                 "Failed to create temporary directory name using template '" ~
-                () @trusted { return fromStringz(&template_[0]); }() ~ "': " ~
+                templateStr ~ "': " ~
                 () @trusted { return strerror(errno).to!string; }());
 
         return path.absolutePath;

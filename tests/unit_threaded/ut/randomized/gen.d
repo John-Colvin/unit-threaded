@@ -2,6 +2,13 @@ module unit_threaded.ut.randomized.gen;
 
 import unit_threaded.randomized.gen;
 
+version (Win32)
+    enum strangeWindowsBehaviour = true;
+else version (Win64)
+    enum strangeWindowsBehaviour = __VERSION__ < 2086;
+else
+    enum strangeWindowsBehaviour = false;
+
 @safe pure unittest {
     import unit_threaded.asserts: assertEqual;
     import std.random: Random;
@@ -79,7 +86,7 @@ else {
         GenASCIIString!() gen;
         assertEqual(gen.gen(rnd), "");
         assertEqual(gen.gen(rnd), "a");
-        version(Windows)
+        static if (strangeWindowsBehaviour)
             assertEqual(gen.gen(rnd), "yt4>%PnZwJ*Nv3L5:9I#N_ZK");
         else
             assertEqual(gen.gen(rnd), "i<pDqp7-LV;W`d)w/}VXi}TR=8CO|m");
@@ -96,7 +103,7 @@ else {
 
     // first the front-loaded values
     assertEqual(gen.gen(rnd), []);
-    version(Windows)
+    static if (strangeWindowsBehaviour)
         assertEqual(gen.gen(rnd), [0, 1]);
     else
         assertEqual(gen.gen(rnd), [0, 1, -2147483648, 2147483647, 681542492, 913057000, 1194544295, -1962453543, 1972751015]);
@@ -124,7 +131,7 @@ else {
     // first the front-loaded values
     assertEqual(gen.gen(rnd), []);
     // then the pseudo-random ones
-    version(Windows)
+    static if (strangeWindowsBehaviour)
         assertEqual(gen.gen(rnd).length, 2);
     else
         assertEqual(gen.gen(rnd).length, 9);
