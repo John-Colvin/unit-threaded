@@ -200,7 +200,7 @@ struct Sandbox {
 
     ~this() @trusted {
         import std.file: rmdirRecurse;
-        if (!persist)
+        if (!persist && testPath)
             rmdirRecurse(testPath);
     }
 
